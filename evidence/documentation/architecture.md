@@ -155,3 +155,40 @@ For every protected object request:
 The object identifier selects a resource.
 
 It does not grant permission to that resource.
+## Architecture and Authorization Boundary
+
+```mermaid
+flowchart TD
+    subgraph HOST["macOS Host — UTM Virtualization"]
+        subgraph LAB["Virtual Lab Network"]
+            K["Kali Linux<br/>Security Testing Client"]
+            J["Ubuntu Server<br/>OWASP Juice Shop API"]
+            D[("Basket Data")]
+        end
+    end
+
+    K -->|"Authenticated HTTP Request<br/>GET /rest/basket/5"| J
+    J -->|"Object Lookup"| D
+    D -->|"Basket 5"| J
+    J -->|"Observed: Cross-user basket returned"| K
+
+    A["Required Control:<br/>Verify authenticated user<br/>is authorized for requested basket"]
+    A -.->|"Proposed — not implemented"| J
+```
+
+### Control Implementation Status
+
+| Control or activity | Status |
+|---|---|
+| Authenticated request to own basket | Tested — HTTP 200 recorded |
+| Cross-user basket access | Tested — HTTP 200 recorded |
+| Server-side object-level authorization | Proposed — not implemented |
+| Cross-user denial after remediation | Not tested |
+| Authorization regression tests | Designed — not executed |
+| Authorization monitoring and alerting | Proposed — not implemented |
+
+The captured JSON responses report application-level `status: success`.
+HTTP 200 results are recorded separately in `lab-notes.md`.
+
+This project demonstrates a vulnerability and specifies its architectural
+remediation. It does not claim that the Juice Shop source code was patched.
