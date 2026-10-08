@@ -158,7 +158,7 @@ It does not grant permission to that resource.
 ## Architecture and Authorization Boundary
 
 ```mermaid
-flowchart TD
+flowchart LR
     subgraph HOST["macOS Host — UTM Virtualization"]
         subgraph LAB["Virtual Lab Network"]
             K["Kali Linux<br/>Security Testing Client"]
