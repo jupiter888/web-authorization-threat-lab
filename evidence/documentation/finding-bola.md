@@ -4,75 +4,86 @@
 F-01
 
 ## Severity
-High
+High — provisional, based on demonstrated cross-user information disclosure. Final severity depends on the sensitivity of exposed data, exploitability, and scope.
 
 ## Category
 Broken Object Level Authorization (BOLA / IDOR)
 
 ## Affected Resource
-Basket API
+OWASP Juice Shop — Basket API (`GET /rest/basket/{id}`)
 
 ## Description
-An authenticated user can modify the basket identifier supplied to the API
-and retrieve a basket belonging to another user.
+An authenticated user was able to retrieve another user's basket by changing the basket identifier in an API request.
 
-The application successfully authenticates the requester but fails to verify
-that the authenticated identity is authorized to access the requested basket.
+The application authenticated the requester but did not adequately enforce object-level authorization between the authenticated identity and the requested basket.
+
+## Reproduction Summary
+
+Testing was performed within an isolated, intentionally vulnerable OWASP Juice Shop lab.
+
+1. Authenticate as a legitimate application user.
+2. Request the authenticated user's basket using `GET /rest/basket/6`.
+3. Retain the same authentication JWT.
+4. Change the requested object identifier to `GET /rest/basket/5`.
+5. Observe that the API returns the different basket.
+
+Both requests returned HTTP 200 during testing, as recorded in the lab notes.
 
 ## Evidence
 
-Two API responses were captured:
+| Artifact | Observed result |
+|---|---|
+| [basket-6.json](../basket-6.json) | Basket ID 6 returned; application status `success` |
+| [basket-5.json](../basket-5.json) | Basket ID 5 returned; application status `success` |
 
-- `basket-5.json`
-- `basket-6.json`
+The captured JSON responses contain application-level success indicators. HTTP response codes and authentication context are documented separately in [lab-notes.md](../../lab-notes.md).
 
-The requests demonstrate that changing the object identifier allows access to
-a basket outside the authenticated user's authorization boundary.
+The authorization failure is established by the cross-user access test using the same authenticated JWT, rather than by the numeric basket identifiers alone.
 
 ## Security Impact
 
-Successful exploitation can result in unauthorized access to another user's
-data.
+The demonstrated impact is unauthorized cross-user basket disclosure.
 
-Depending on the operations exposed by the affected API, similar authorization
-failures could potentially permit unauthorized reading or modification of
-application resources.
+Similar authorization failures on other endpoints could potentially affect additional resources or permit unauthorized modifications. Those broader impacts were not demonstrated in this assessment.
 
 ## Root Cause
 
-The server trusts a client-controlled object identifier without sufficiently
-binding the requested object to the authenticated user's identity.
+The API did not sufficiently enforce authorization between the authenticated user and the requested basket object.
+
+The client-controlled basket identifier selected the resource, but the server did not adequately verify the requester's permission to access it.
 
 ## Required Remediation
 
-Perform server-side object-level authorization for every request.
-
-The application should:
+Enforce server-side object-level authorization on every protected basket request.
 
 1. Authenticate the requester.
-2. Determine the authenticated identity.
-3. Retrieve or evaluate the requested resource.
-4. Verify that the identity is authorized for that resource.
-5. Return the resource only when authorization succeeds.
+2. Resolve the authenticated identity from trusted server-side authentication context.
+3. Identify the requested basket.
+4. Verify that the requester is authorized to access that basket.
+5. Return the resource only after authorization succeeds.
 
-Unauthorized cross-user requests should return:
+Expected secure behavior:
 
-    HTTP 403 Forbidden
+- Authorized basket owner: HTTP 200.
+- Authenticated but unauthorized requester: HTTP 403.
+- Unauthenticated requester: HTTP 401.
 
-Requests without valid authentication should return:
+These are proposed authorization requirements, not results from an implemented remediation.
 
-    HTTP 401 Unauthorized
+## Validation Requirements
 
-## Validation Requirement
+After remediation, execute the positive and negative tests in [authorization-test-cases.md](authorization-test-cases.md).
 
-After remediation, repeat the cross-user test documented in
-`authorization-test-cases.md`.
+Verify that an authenticated user cannot retrieve another user's basket by changing the object identifier.
 
-The vulnerability is considered remediated only when an authenticated user
-cannot access another user's basket by manipulating the basket identifier.
+The proposed control has **not been implemented or regression-tested** as part of this project.
 
-## Related Control
+## Related Controls
 
-See:
+[SC-01 — Object-Level Authorization for Basket Access](security-controls.md)
 
-`security-controls.md` — SC-01 Object-Level Authorization for Basket Access
+## Residual Risk
+
+Remediation of the demonstrated basket endpoint would not establish that object-level authorization is consistently enforced across other application endpoints.
+
+Additional endpoint inventory, authorization testing, and regression coverage would be required before making broader security assurance claims.
