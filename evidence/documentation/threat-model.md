@@ -1,187 +1,169 @@
-# Threat Model
+# Threat Model — Basket Object-Level Authorization
 
-## Scope
+## 1. Scope and Objective
 
-The threat model focuses on authenticated access to protected application
-objects through the Juice Shop API.
+**Application:** OWASP Juice Shop  
+**Component:** Basket API — `GET /rest/basket/{id}`  
+**Environment:** Isolated personal security lab  
+**Related finding:** [F-01 — Broken Object Level Authorization](finding-bola.md)
 
-Primary asset:
+This threat model evaluates whether an authenticated application user can access another user's protected basket through a client-controlled object identifier.
 
-User-specific basket data.
+**Primary security objective:** Preserve confidentiality by ensuring basket access is limited to the resource owner or another explicitly authorized identity.
 
-Primary security property:
+This assessment does not establish application-wide authorization security.
 
-A user must not be able to access another user's basket unless explicitly
-authorized.
+## 2. Assets and Security Properties
 
----
+| Asset | Required protection |
+|---|---|
+| User identities | Authenticity and correct association with requests |
+| Authentication tokens | Confidentiality and integrity |
+| Basket objects and contents | Confidentiality and integrity |
+| Basket ownership relationships | Integrity |
+| Authorization policies | Integrity and consistent enforcement |
+| Application/API data | Access restricted according to applicable policy |
 
-## Assets
+The primary demonstrated impact concerns basket confidentiality.
 
-- User identities
-- Authentication tokens
-- Basket objects
-- Basket contents
-- Authorization relationships
-- Application/API data
+## 3. Architecture and Data Flow
 
----
+The relevant components are:
 
-## Threat Actor
+1. **Client:** Authenticated user submitting an API request.
+2. **Authentication mechanism:** Establishes the requester's identity.
+3. **Basket API:** Accepts the requested basket identifier.
+4. **Authorization decision:** Must evaluate whether the requester may access the basket.
+5. **Basket data store:** Contains user-specific basket resources.
 
-Authenticated low-privilege user.
+The expected secure flow is:
 
-The attacker does not require administrative privileges.
+`Client → Authentication → Basket API → Object-Level Authorization → Basket Data`
 
-The attacker possesses legitimate credentials for their own account and
-attempts to cross an authorization boundary.
+The demonstrated vulnerable behavior occurred because the requested basket was returned without adequate enforcement of object-level authorization.
 
----
+See the [lab architecture diagram](architecture.md).
 
-## Entry Point
+## 4. Trust Boundaries
 
-Basket API endpoint accepting a client-controlled basket identifier.
+### TB-01 — Client to Application API
 
----
+The client is outside the server's trusted execution environment.
 
-## Trust Boundary
+The client controls the requested basket identifier and can modify the HTTP request.
 
-The client controls the requested basket identifier.
+**Required control:** Validate authentication and treat client-supplied identifiers as untrusted input.
 
-Therefore:
+### TB-02 — Authenticated Identity to Protected Object
 
-    basket ID != authorization
+A valid authenticated identity does not automatically grant access to every basket.
 
-All client-supplied object references must be treated as untrusted.
+**Required control:** Evaluate ownership or an explicit authorization policy for the specific requested object.
 
----
+**Observed failure:** An authenticated user retrieved another user's basket.
 
-## Threat Scenario — T-01
+This is the primary demonstrated authorization boundary violation.
 
-### Objective
+### TB-03 — Application Service to Data Store
 
-Access another user's basket.
+The application service retrieves basket resources from the data store.
 
-### Preconditions
+**Required control:** Ensure protected resource data is returned only following a successful authorization decision.
 
-- Attacker has a legitimate user account.
-- Attacker can authenticate normally.
-- Basket identifiers can be supplied or modified by the client.
+The internal implementation of this boundary was not independently assessed in the lab.
 
-### Attack Path
+## 5. Threat Actor
 
-    legitimate login
-          |
-          v
-    obtain authenticated session/token
-          |
-          v
-    request own basket
-          |
-          v
-    observe object identifier
-          |
-          v
-    modify basket identifier
-          |
-          v
-    request different basket
-          |
-          v
-    authorization check missing/insufficient
-          |
-          v
-    another user's basket returned
+**Actor:** Authenticated, low-privilege application user.
 
-### Security Impact
+**Capabilities:**
 
-Confidentiality violation through unauthorized cross-user data access.
+- Authenticate using a legitimate account.
+- Submit HTTP requests to the basket API.
+- Modify client-controlled basket identifiers.
+- Reuse their valid authentication JWT.
 
-Similar authorization failures on write-capable endpoints could also create
-integrity risk.
+**Privileges not required:** Administrative access or authentication bypass.
 
----
+## 6. Threat Scenario — T-01
 
-## STRIDE Mapping
+**Objective:** Retrieve another user's basket.
 
-### Spoofing
+**Preconditions:** The attacker has valid credentials and can submit requests containing different basket identifiers.
 
-Authentication was not bypassed in the demonstrated scenario.
+**Observed attack sequence:**
 
-The attacker used a legitimate authenticated identity.
+1. Authenticate as User A.
+2. Request basket 6 using a valid JWT.
+3. Receive HTTP 200 and basket 6.
+4. Reuse the same JWT.
+5. Request basket 5 by modifying the identifier.
+6. Receive HTTP 200 and basket 5.
 
-### Tampering
+**Finding:** [F-01 — BOLA](finding-bola.md)
 
-Not demonstrated in this test.
+**Observed impact:** Unauthorized cross-user basket disclosure.
 
-Potential impact exists if the same authorization weakness affects endpoints
-that modify basket resources.
+Potential unauthorized modification of other resources was not demonstrated.
 
-### Repudiation
+## 7. STRIDE Threat Classification
 
-Insufficient authorization logging could make repeated cross-user access
-attempts difficult to investigate.
+| STRIDE category | Assessment | Evidence status |
+|---|---|---|
+| Spoofing | Authentication bypass or identity impersonation was not demonstrated | Not demonstrated |
+| Tampering | Similar authorization defects could affect write operations | Hypothetical |
+| Repudiation | Inadequate logging could hinder investigation | Not assessed |
+| Information Disclosure | Cross-user basket data returned to an unauthorized authenticated user | Demonstrated |
+| Denial of Service | Outside assessment scope | Not evaluated |
+| Elevation of Privilege | User exceeded intended object-level access permissions without changing roles | Demonstrated at object-access level |
 
-### Information Disclosure
+The principal demonstrated STRIDE category is **Information Disclosure**.
 
-**Primary demonstrated threat.**
+## 8. Required Mitigations
 
-Another user's basket data can be disclosed across an authorization boundary.
+| Control | Description | Implementation status |
+|---|---|---|
+| SC-01 | Enforce server-side basket object-level authorization | Proposed |
+| SC-02 | Deny access by default | Proposed |
+| SC-03 | Apply consistent authorization enforcement | Proposed |
+| SC-04 | Log and monitor denied object-access attempts | Proposed |
+| SC-05 | Automate positive and negative authorization tests | Proposed |
+| SC-06 | Reduce unnecessary exposure of object identifiers | Proposed |
 
-### Denial of Service
+Control specifications: [security-controls.md](security-controls.md).
 
-Not evaluated in this test.
+These controls were designed as remediation requirements, not implemented or validated as fixes.
 
-### Elevation of Privilege
+## 9. Verification Strategy
 
-The attacker crosses the intended object-level authorization boundary despite
-remaining a normal authenticated user.
+| Test | Expected secure behavior | Lab observation |
+|---|---|---|
+| TC-01 — Owner access | HTTP 200 | HTTP 200 — executed |
+| TC-02 — Cross-user access | HTTP 403 | HTTP 200 — vulnerability demonstrated |
+| TC-03 — Unauthenticated access | HTTP 401 | Not verified |
 
----
+See [authorization-test-cases.md](authorization-test-cases.md).
 
-## Required Mitigations
+A future remediation would require rerunning the authorization tests and confirming that protected basket contents are not disclosed to unauthorized requesters.
 
-1. Enforce server-side object-level authorization.
-2. Bind protected resources to authenticated identities.
-3. Deny access by default when authorization cannot be established.
-4. Return 403 for authenticated but unauthorized object access.
-5. Log denied cross-object authorization attempts.
-6. Add automated negative authorization tests.
-7. Review other object-based API endpoints for the same authorization pattern.
+## 10. Residual Risk
 
----
+Even after remediation of the demonstrated endpoint, risks could remain from:
 
-## Verification
+- Other endpoints lacking object-level authorization.
+- Write operations with insufficient ownership checks.
+- Incorrect basket ownership mappings.
+- Excessively broad privileged roles.
+- Authorization logic regressions.
+- Incomplete endpoint inventories or test coverage.
+- Missing monitoring of authorization failures.
 
-The mitigation must be tested using both positive and negative cases.
+No claim of application-wide authorization assurance is made.
 
-Positive:
+## 11. Assessment Conclusion
 
-    User A -> Basket A -> allowed
+The lab demonstrated an object-level authorization failure in OWASP Juice Shop's basket API.
 
-Negative:
+The assessment produced a documented finding, proposed security controls, and a validation strategy. The remediation was **not implemented**, and successful post-remediation testing is not claimed.
 
-    User A -> Basket B -> denied
-
-Unauthenticated:
-
-    No authenticated identity -> protected basket -> denied
-
-See `authorization-test-cases.md` for the corresponding test cases.
-
----
-
-## Residual Risk
-
-Correcting one endpoint does not prove that object-level authorization is
-consistently enforced throughout the application.
-
-Residual risk remains if:
-
-- other API endpoints implement authorization independently;
-- new endpoints omit object-level checks;
-- authorization logic changes without negative testing;
-- privileged roles are incorrectly scoped.
-
-Authorization testing should therefore be included in regression testing and
-architecture/security review.
+**Architectural conclusion:** A valid authenticated identity must be evaluated against the requested protected object before access is granted.
