@@ -159,21 +159,22 @@ It does not grant permission to that resource.
 
 ```mermaid
 flowchart LR
-    subgraph HOST["macOS Host — UTM Virtualization"]
-        subgraph LAB["Virtual Lab Network"]
-            K["Kali Linux<br/>Security Testing Client"]
-            J["Ubuntu Server<br/>OWASP Juice Shop API"]
+    subgraph HOST["macOS Host — UTM"]
+        subgraph LAB["Isolated Virtual Lab"]
+            direction LR
+            K["Kali Linux<br/>Testing Client"]
+            J["Ubuntu Server<br/>Juice Shop API"]
             D[("Basket Data")]
         end
     end
 
-    K -->|"Authenticated HTTP Request<br/>GET /rest/basket/5"| J
-    J -->|"Object Lookup"| D
-    D -->|"Basket 5"| J
-    J -->|"Observed: Cross-user basket returned"| K
+    K -->|"1. Authenticated GET /rest/basket/5"| J
+    J -->|"2. Retrieve requested basket"| D
+    D -->|"3. Basket 5 returned"| J
+    J -->|"4. HTTP 200: Cross-user data exposed"| K
 
-    A["Required Control:<br/>Verify authenticated user<br/>is authorized for requested basket"]
-    A -.->|"Proposed — not implemented"| J
+    C["Required: Validate basket ownership<br/>Proposed — NOT implemented"]
+    C -.-> J
 ```
 
 ### Control Implementation Status
