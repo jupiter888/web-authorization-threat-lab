@@ -165,15 +165,16 @@ flowchart LR
             K["Kali Linux<br/>Testing Client"]
             J["Ubuntu Server<br/>Juice Shop API"]
             D[("Basket Data")]
+
+            K -->|"1. Authenticated GET /rest/basket/5"| J
+            J -->|"2. Basket lookup"| D
         end
     end
 
-    K -->|"1. Authenticated GET /rest/basket/5"| J
-    J -->|"2. Retrieve requested basket"| D
-    D -->|"3. Basket 5 returned"| J
-    J -->|"4. HTTP 200: Cross-user data exposed"| K
+    R["Observed: HTTP 200<br/>Cross-user basket returned"]
+    J -.-> R
 
-    C["Required: Validate basket ownership<br/>Proposed — NOT implemented"]
+    C["Required: Basket ownership validation<br/>Proposed — NOT implemented"]
     C -.-> J
 ```
 
