@@ -1,5 +1,17 @@
 # Web Application Authorization Security Lab
 
+## Executive Summary
+
+**Finding:** F-01 — Broken Object Level Authorization (BOLA/IDOR)  
+**Target:** OWASP Juice Shop, deployed in an isolated virtual lab  
+**Observed behavior:** An authenticated user retrieved a different user's basket by changing the object identifier. Both requests returned HTTP 200 during testing.  
+**Security impact:** Unauthorized cross-user data disclosure.  
+**Root cause:** Missing or insufficient server-side object-level authorization.  
+**Recommended control:** Enforce authorization between the authenticated identity and the requested basket before returning protected data.  
+**Remediation status:** Proposed and documented; not implemented or regression-tested.
+
+**[View Architecture Diagram](evidence/documentation/architecture.md)** · **[Security Finding](evidence/documentation/finding-bola.md)** · **[Threat Model](evidence/documentation/threat-model.md)** · **[Authorization Test Cases](evidence/documentation/authorization-test-cases.md)**
+
 ## Overview
 
 This project demonstrates the identification, analysis, and architectural
@@ -132,7 +144,7 @@ Authorization must be enforced server-side for every protected object request.
 
 ## Validation Strategy
 
-The security control is validated using three fundamental cases:
+The proposed security control would be validated using three fundamental test cases:
 
 1. Authenticated owner requests their own object -> allowed.
 2. Authenticated user requests another user's object -> denied.
